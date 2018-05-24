@@ -3,8 +3,8 @@
 module.exports = {
     up(queryInterface, Sequelize) {
         return queryInterface.addColumn(
-            'tips',
-            'accepted',
+            'quizzes',
+            'authorId',
             {
                 type: Sequelize.BOOLEAN,
                 defaultValue: false

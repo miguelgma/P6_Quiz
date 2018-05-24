@@ -20,14 +20,15 @@ const paginate = require('../helpers/paginate').paginate;
 // Autoload the quiz with id equals to :quizId
 exports.load = (req, res, next, quizId) => {
 
-<<<<<<< HEAD
     models.quiz.findById(quizId, {
         include: [
-            models.tip,
-            {model: models.user, as: 'author'}
-        ]
+            {
+           model:  models.tip,
+             include: [(model: models.user, as: "author")]
+         },
+         {model: models.user, as: "author"}
     })
-=======
+
     const options = {
         include: [
             models.tip,
@@ -48,7 +49,7 @@ exports.load = (req, res, next, quizId) => {
     }
 
     models.quiz.findById(quizId, options)
->>>>>>> practica6
+
     .then(quiz => {
         if (quiz) {
             req.quiz = quiz;
@@ -80,18 +81,15 @@ exports.adminOrAuthorRequired = (req, res, next) => {
 exports.index = (req, res, next) => {
 
     let countOptions = {
-<<<<<<< HEAD
         where: {}
     };
 
-=======
+
         where: {},
         include: []
     };
 
     const searchfavourites = req.query.searchfavourites || "";
-
->>>>>>> practica6
     let title = "Questions";
 
     // Search:
@@ -105,9 +103,8 @@ exports.index = (req, res, next) => {
     // If there exists "req.user", then only the quizzes of that user are shown
     if (req.user) {
         countOptions.where.authorId = req.user.id;
-<<<<<<< HEAD
+
         title = "Questions of " + req.user.username;
-=======
 
         if (req.session.user && req.session.user.id == req.user.id) {
             title = "My Questions";
@@ -142,7 +139,7 @@ exports.index = (req, res, next) => {
                 attributes: ['id']
             });
         }
->>>>>>> practica6
+
     }
 
     models.quiz.count(countOptions)
@@ -162,7 +159,6 @@ exports.index = (req, res, next) => {
         const findOptions = {
             ...countOptions,
             offset: items_per_page * (pageno - 1),
-<<<<<<< HEAD
             limit: items_per_page,
             include: [{model: models.user, as: 'author'}]
         };
@@ -175,7 +171,7 @@ exports.index = (req, res, next) => {
             search,
             title
         });
-=======
+
             limit: items_per_page
         };
 
@@ -220,7 +216,7 @@ exports.index = (req, res, next) => {
                 console.log('No supported format \".'+format+'\".');
                 res.sendStatus(406);
         }
->>>>>>> practica6
+
     })
     .catch(error => next(error));
 };
