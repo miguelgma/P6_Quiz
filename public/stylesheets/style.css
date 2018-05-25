@@ -44,16 +44,6 @@ a {
     float: right;
 }
 
-<<<<<<< HEAD
-=======
-.stars {
-    float: left;
-    clear: both;
-}
-
-/* ------------------------- */
-
->>>>>>> practica6
 .wideRow {
     display: flex;
     flex-flow: row wrap;

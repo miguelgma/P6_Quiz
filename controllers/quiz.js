@@ -1,19 +1,6 @@
 const Sequelize = require("sequelize");
 const Op = Sequelize.Op;
 const {models} = require("../models");
-const cloudinary = require('cloudinary');
-const fs = require('fs');
-const attHelper = require("../helpers/attachments");
-
-const paginate = require('../helpers/paginate').paginate;
-
-// Optios for the files uploaded to Cloudinary
-const cloudinary_upload_options = {
-    async: true,
-    folder: "/core/quiz2018/attachments",
-    resource_type: "auto",
-    tags: ['core', 'quiz']
-};
 
 const paginate = require('../helpers/paginate').paginate;
 
@@ -22,34 +9,13 @@ exports.load = (req, res, next, quizId) => {
 
     models.quiz.findById(quizId, {
         include: [
-            {
-           model:  models.tip,
-             include: [(model: models.user, as: "author")]
-         },
-         {model: models.user, as: "author"}
-    })
-
-    const options = {
-        include: [
-            models.tip,
-            models.attachment,
+        {
+            model: models.tip,
+            include: [{model: models.user, as: 'author'}]
+        },
             {model: models.user, as: 'author'}
         ]
-    };
-
-    // For logged in users: include the favourites of the question by filtering by
-    // the logged in user with an OUTER JOIN.
-    if (req.session.user) {
-        options.include.push({
-            model: models.user,
-            as: "fans",
-            where: {id: req.session.user.id},
-            required: false  // OUTER JOIN
-        });
-    }
-
-    models.quiz.findById(quizId, options)
-
+    })
     .then(quiz => {
         if (quiz) {
             req.quiz = quiz;
@@ -84,12 +50,6 @@ exports.index = (req, res, next) => {
         where: {}
     };
 
-
-        where: {},
-        include: []
-    };
-
-    const searchfavourites = req.query.searchfavourites || "";
     let title = "Questions";
 
     // Search:
@@ -103,43 +63,7 @@ exports.index = (req, res, next) => {
     // If there exists "req.user", then only the quizzes of that user are shown
     if (req.user) {
         countOptions.where.authorId = req.user.id;
-
         title = "Questions of " + req.user.username;
-
-        if (req.session.user && req.session.user.id == req.user.id) {
-            title = "My Questions";
-        } else {
-            title = "Questions of " + req.user.username;
-        }
-    }
-
-    // Filter: my favourite quizzes:
-    if (req.session.user) {
-        if (searchfavourites) {
-            countOptions.include.push({
-                model: models.user,
-                as: "fans",
-                where: {id: req.session.user.id},
-                attributes: ['id']
-
-            });
-        } else {
-
-            // NOTE:
-            // It should be added the options ( or similars )
-            // to have a lighter query:
-            //    where: {id: req.session.user.id},
-            //    required: false  // OUTER JOIN
-            // but this does not work with SQLite. The generated
-            // query fails when there are several fans of the same quiz.
-
-            countOptions.include.push({
-                model: models.user,
-                as: "fans",
-                attributes: ['id']
-            });
-        }
-
     }
 
     models.quiz.count(countOptions)
@@ -171,52 +95,6 @@ exports.index = (req, res, next) => {
             search,
             title
         });
-
-            limit: items_per_page
-        };
-
-        findOptions.include.push(models.attachment);
-        findOptions.include.push({
-            model: models.user,
-            as: 'author'
-        });
-
-        return models.quiz.findAll(findOptions);
-    })
-    .then(quizzes => {
-
-        const format = (req.params.format || 'html').toLowerCase();
-
-        switch (format) {
-            case 'html':
-
-                // Mark favourite quizzes:
-                if (req.session.user) {
-                    quizzes.forEach(quiz => {
-                        quiz.favourite = quiz.fans.some(fan => {
-                            return fan.id == req.session.user.id;
-                        });
-                    });
-                }
-
-                res.render('quizzes/index.ejs', {
-                    quizzes,
-                    search,
-                    searchfavourites,
-                    cloudinary,
-                    title
-                });
-                break;
-
-            case 'json':
-                res.json(quizzes);
-                break;
-
-            default:
-                console.log('No supported format \".'+format+'\".');
-                res.sendStatus(406);
-        }
-
     })
     .catch(error => next(error));
 };
@@ -227,47 +105,7 @@ exports.show = (req, res, next) => {
 
     const {quiz} = req;
 
-    const format = (req.params.format || 'html').toLowerCase();
-
-    switch (format) {
-        case 'html':
-
-            new Promise((resolve, reject) => {
-
-                // Only for logger users:
-                //   if this quiz is one of my fovourites, then I create
-                //   the attribute "favourite = true"
-                if (req.session.user) {
-                    resolve(
-                        req.quiz.getFans({where: {id: req.session.user.id}})
-                        .then(fans => {
-                            if (fans.length > 0) {
-                                req.quiz.favourite = true;
-                            }
-                        })
-                    );
-                } else {
-                    resolve();
-                }
-            })
-            .then(() => {
-                res.render('quizzes/show', {
-                    quiz,
-                    cloudinary
-                });
-            })
-            .catch(error => next(error));
-
-            break;
-
-        case 'json':
-            res.json(quiz);
-            break;
-
-        default:
-            console.log('No supported format \".'+format+'\".');
-            res.sendStatus(406);
-    }
+    res.render('quizzes/show', {quiz});
 };
 
 
@@ -275,7 +113,7 @@ exports.show = (req, res, next) => {
 exports.new = (req, res, next) => {
 
     const quiz = {
-        question: "",
+        question: "", 
         answer: ""
     };
 
@@ -299,52 +137,14 @@ exports.create = (req, res, next) => {
     quiz.save({fields: ["question", "answer", "authorId"]})
     .then(quiz => {
         req.flash('success', 'Quiz created successfully.');
-
-        if (!req.file) {
-            req.flash('info', 'Quiz without attachment.');
-            res.redirect('/quizzes/' + quiz.id);
-            return;
-        }
-
-        // Save the attachment into  Cloudinary
-        return attHelper.checksCloudinaryEnv()
-        .then(() => {
-            return attHelper.uploadResourceToCloudinary(req.file.path, cloudinary_upload_options);
-        })
-        .then(uploadResult => {
-
-            // Create the new attachment into the data base.
-            return models.attachment.create({
-                public_id: uploadResult.public_id,
-                url: uploadResult.url,
-                filename: req.file.originalname,
-                mime: req.file.mimetype,
-                quizId: quiz.id })
-            .then(attachment => {
-                req.flash('success', 'Image saved successfully.');
-            })
-            .catch(error => { // Ignoring validation errors
-                req.flash('error', 'Failed to save file: ' + error.message);
-                cloudinary.api.delete_resources(uploadResult.public_id);
-            });
-
-        })
-        .catch(error => {
-            req.flash('error', 'Failed to save attachment: ' + error.message);
-        })
-        .then(() => {
-            fs.unlink(req.file.path); // delete the file uploaded at./uploads
-            res.redirect('/quizzes/' + quiz.id);
-        });
+        res.redirect('/quizzes/' + quiz.id);
     })
     .catch(Sequelize.ValidationError, error => {
-
         req.flash('error', 'There are errors in the form:');
         error.errors.forEach(({message}) => req.flash('error', message));
         res.render('quizzes/new', {quiz});
     })
     .catch(error => {
-
         req.flash('error', 'Error creating a new Quiz: ' + error.message);
         next(error);
     });
@@ -371,64 +171,7 @@ exports.update = (req, res, next) => {
     quiz.save({fields: ["question", "answer"]})
     .then(quiz => {
         req.flash('success', 'Quiz edited successfully.');
-
-        if (!body.keepAttachment) {
-
-            // There is no attachment: Delete old attachment.
-            if (!req.file) {
-                req.flash('info', 'This quiz has no attachment.');
-                if (quiz.attachment) {
-                    cloudinary.api.delete_resources(quiz.attachment.public_id);
-                    quiz.attachment.destroy();
-                }
-                return;
-            }
-
-            // Save the new attachment into Cloudinary:
-            return attHelper.checksCloudinaryEnv()
-            .then(() => {
-                return attHelper.uploadResourceToCloudinary(req.file.path, cloudinary_upload_options);
-            })
-            .then(function (uploadResult) {
-
-                // Remenber the public_id of the old image.
-                const old_public_id = quiz.attachment ? quiz.attachment.public_id : null;
-
-                // Update the attachment into the data base.
-                return quiz.getAttachment()
-                .then(function(attachment) {
-                    if (!attachment) {
-                        attachment = models.attachment.build({ quizId: quiz.id });
-                    }
-                    attachment.public_id = uploadResult.public_id;
-                    attachment.url = uploadResult.url;
-                    attachment.filename = req.file.originalname;
-                    attachment.mime = req.file.mimetype;
-                    return attachment.save();
-                })
-                .then(function(attachment) {
-                    req.flash('success', 'Image saved successfully.');
-                    if (old_public_id) {
-                        cloudinary.api.delete_resources(old_public_id);
-                    }
-                })
-                .catch(function(error) { // Ignoring image validation errors
-                    req.flash('error', 'Failed saving new image: '+error.message);
-                    cloudinary.api.delete_resources(uploadResult.public_id);
-                });
-
-
-            })
-            .catch(function(error) {
-                req.flash('error', 'Failed saving the new attachment: ' + error.message);
-            })
-            .then(function () {
-                fs.unlink(req.file.path); // delete the file uploaded at./uploads
-            });
-        }
-    })
-    .then(function () {
-        res.redirect('/quizzes/' + req.quiz.id);
+        res.redirect('/quizzes/' + quiz.id);
     })
     .catch(Sequelize.ValidationError, error => {
         req.flash('error', 'There are errors in the form:');
@@ -444,15 +187,6 @@ exports.update = (req, res, next) => {
 
 // DELETE /quizzes/:quizId
 exports.destroy = (req, res, next) => {
-
-    // Delete the attachment at Cloudinary (result is ignored)
-    if (req.quiz.attachment) {
-        attHelper.checksCloudinaryEnv()
-        .then(() => {
-            cloudinary.api.delete_resources(req.quiz.attachment.public_id);
-        });
-    }
-
     req.quiz.destroy()
     .then(() => {
         req.flash('success', 'Quiz deleted successfully.');
@@ -472,32 +206,10 @@ exports.play = (req, res, next) => {
 
     const answer = query.answer || '';
 
-    new Promise(function (resolve, reject) {
-
-        // Only for logger users:
-        //   if this quiz is one of my fovourites, then I create
-        //   the attribute "favourite = true"
-        if (req.session.user) {
-            resolve(
-                req.quiz.getFans({where: {id: req.session.user.id}})
-                .then(fans => {
-                    if (fans.length > 0) {
-                        req.quiz.favourite = true
-                    }
-                })
-            );
-        } else {
-            resolve();
-        }
-    })
-    .then(() => {
-        res.render('quizzes/play', {
-            quiz,
-            answer,
-            cloudinary
-        });
-    })
-    .catch(error => next(error));
+    res.render('quizzes/play', {
+        quiz,
+        answer
+    });
 };
 
 
@@ -516,72 +228,84 @@ exports.check = (req, res, next) => {
     });
 };
 
+//GET /quizzes/randomplay
+exports.playrandom = (req, res, next) => {
 
- 
- exports.randomplay = (req, res, next) => {
+    let getRandomId = () =>{
+        let id = req.session.randomplay[Math.floor((Math.random() * req.session.randomplay.length))];
+        req.session.randomplay.splice(req.session.randomplay.indexOf(id), 1);
+        console.log("El id es: "+id);
+        return id;
+    }
+    let gameStarted = () =>{
+        if(req.session.started === undefined){
+            console.log("SE INICIA DE NUEVO");
+            req.session.randomplay = [];
+            req.session.score = 0;
+            req.session.started = true;
+            return models.quiz.count().then(numOfQuizzes =>{
+                for(let i = 0; i < numOfQuizzes; i++){
+                    req.session.randomplay[i] = i+1;
+                }
+            });
+        }
+        console.log("started "+req.session.started);
+        return Promise.resolve();
+    } 
 
-    req.session.randomPlay = req.session.randomPlay || [];
-
-    const whereOpt = {id:{[Sequelize.Op.notIn]: req.session.randomPlay}}; //Ids que no estén en session.randomPlay
-
-    models.quiz.count({where:whereOpt})
-        .then(function(count) {
-            if(!count){  //todos los ids estan en session.randomPlay, ya se han jugado
-                const score = req.session.randomPlay.length;
-                req.session.randomPlay = []; //vaciamos para la siguiente vez comenzar el juego de 0.
-                res.render('quizzes/random_none',{
-                    score:score
+    gameStarted().then(() => {
+        if(req.session.started && req.session.randomplay.length === 0){
+            return new Promise(resolve =>{
+                let score = req.session.score;
+                delete req.session.started;
+                res.render('quizzes/random_nomore',{
+                    score
                 });
-            }
-            return models.quiz.findAll({    //Buscamos un quizz aleatoriamente que no esté en session.Play
-                where: whereOpt,
-                offset: Math.floor(count*Math.random()),
-                limit: 1
             })
-                .then(function(quizzes) {
-                    return quizzes[0];
-                });
-        })
-        .then(function(quiz) {                      //Este quizz lo pasamos junto a la puntuacion que llevamos a la vista random_play.ejs
-            //const score = req.session.randomPlay.length;
+        }
+        return models.quiz.findById(getRandomId()).then(quiz => {
+            let score = req.session.score;
+            console.log("Responde pregunta----->>>>>>");
+            console.log(req.session.started);
+            console.log(req.session.randomplay)
             res.render('quizzes/random_play',{
-                quiz:quiz,
-                score:req.session.randomPlay.length
+                score,
+                quiz
             });
         })
-        .catch(function(error) {
-            next(error);
-        });
+    }).catch(e =>{
+        res.render('error',e);
+    })
+};
+
+//GET /quizzes/randomcheck/:quizId?answer=respuesta
+exports.playresult = (req, res, next) => {
+    let answer = req.query.answer;
+    let quizId = req.params.quizId;
+    console.log("Comprobacion");
+    console.log(quizId);
+    models.quiz.findById(quizId).then(quiz =>{
+        let score = 0;
+        if(quiz.answer === answer){
+            result = 1;
+            req.session.score++;
+        }else{
+            result = 0;
+            delete req.session.started;
+        }
+        score = req.session.score;
+        res.render('quizzes/random_result',{
+            score,
+            answer,
+            result
+        })  
+    });
 
 };
 
-
-
-
-exports.randomcheck = (req, res, next) => {
-
-    const {quiz, query} = req;
-
-    const answer = query.answer || "";
-    const result = answer.toLowerCase().trim() === quiz.answer.toLowerCase().trim();
-
-    const score = req.session.randomPlay.length;
-
-    if(result) {
-        req.session.randomPlay.push(quiz.id);
-        req.session.score++;
-    }else{
-        req.session.randomPlay = [];
-    }
-
-
-
-
-    res.render('quizzes/random_result',{
-        answer,
-        quiz,
-        result,
+exports.playnomore = (req, res, next) => {
+    let score = 0;
+    res.render('quizzes/random_nomore',{
         score
-    });
-
+    })  
 };

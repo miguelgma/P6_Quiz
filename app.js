@@ -65,12 +65,6 @@ app.use(function(req, res, next) {
     // To use req.session in the views
     res.locals.session = req.session;
 
-<<<<<<< HEAD
-=======
-    // To use req.url in the views
-    res.locals.url = req.url;
-    
->>>>>>> practica6
     next();
 });
 

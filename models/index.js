@@ -1,3 +1,4 @@
+
 const path = require('path');
 
 // Load ORM
@@ -22,16 +23,12 @@ sequelize.import(path.join(__dirname,'tip'));
 // Import the definition of the Users Table from user.js
 sequelize.import(path.join(__dirname,'user'));
 
-
 // Session
 sequelize.import(path.join(__dirname,'session'));
-
 
 // Relation between models
 
 const {quiz, tip, user} = sequelize.models;
-
-
 
 tip.belongsTo(quiz);
 quiz.hasMany(tip);
@@ -40,10 +37,9 @@ quiz.hasMany(tip);
 user.hasMany(quiz, {foreignKey: 'authorId'});
 quiz.belongsTo(user, {as: 'author', foreignKey: 'authorId'});
 
-user.hasMany(tip, {foreignKey: 'authorId'});
-quiz.belongsTo(user, {as: 'author', foreignKey: 'authorId'});
-
-// Relation 1-to-1 between Quiz and Attachment
-
+user.hasMany(quiz, {foreignKey: 'authorId'});
+tip.belongsTo(user, {as: 'author', foreignKey: 'authorId'});
 
 module.exports = sequelize;
+
+    
